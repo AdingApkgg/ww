@@ -1,0 +1,15 @@
+services:
+  workspace:
+    build: .
+    platform: linux/amd64
+    ports:
+      - "${WW_BIND_ADDRESS:-127.0.0.1}:${WW_PUBLISHED_PORT:-4387}:4387"
+    environment:
+      WW_ADMIN_TOKEN: ${WW_ADMIN_TOKEN:?Set a random admin token of at least 16 characters in .env}
+      WW_ORIGIN: ${WW_ORIGIN:?Set the exact browser origin in .env}
+    volumes:
+      - wine-data:/data
+    shm_size: 512mb
+    restart: unless-stopped
+volumes:
+  wine-data:

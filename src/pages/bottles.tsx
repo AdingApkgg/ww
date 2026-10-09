@@ -1,0 +1,32 @@
+import { useState } from 'react'
+import { Link } from 'react-router'
+import { ArrowRight, ArrowUpRight, Box, Gamepad2, Grid2X2, Layers3, List, Plus, Search, Star, TerminalSquare, Wine } from 'lucide-react'
+import type { Bottle } from '../../shared/types'
+import { api } from '@/lib/api'
+import { useOperation, useWorkspace } from '@/lib/workspace'
+import { categoryLabels, cn, dateLabel } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { BottleArt } from '@/components/bottle-art'
+import { Status } from '@/components/status'
+
+export function BottlesPage({ onCreate }: { onCreate: () => void }) {
+  const { state } = useWorkspace(); const { pending, perform } = useOperation()
+  const [query, setQuery] = useState(''); const [filter, setFilter] = useState('all'); const [view, setView] = useState<'grid' | 'list'>('grid')
+  if (!state) return null
+  const bottles = state.bottles.filter(bottle => `${bottle.name} ${bottle.description}`.toLowerCase().includes(query.toLowerCase()) && (filter === 'all' || filter === 'favorite' && bottle.favorite || bottle.category === filter))
+  const running = state.jobs.filter(job => job.status === 'running').length
+  const favorite = (bottle: Bottle) => void perform(() => api(`/bottles/${bottle.id}`, { method: 'PATCH', body: JSON.stringify({ favorite: !bottle.favorite }) }))
+  return <>
+    <div className="page-heading"><div><div className="eyebrow">YOUR LITTLE WINDOWS WORLD</div><h1>我的 Bottles<span className="heading-count">{state.bottles.length}</span></h1><p>让每个 Windows 应用，在自己的空间里运行。</p></div><Button onClick={onCreate}><Plus/>新建 Bottle</Button></div>
+    <section className="welcome-panel"><div><span className="welcome-label"><span className="sparkle">✳</span> YOUR SPACE, YOUR RULES</span><h2>A little room<br/><em>for Windows.</em></h2><p>游戏、工具，或一个偶尔才会用到的程序。<br/>装进 Bottle，让它们各得其所。</p><Link to="/environment">检查你的运行环境 <ArrowUpRight size={15}/></Link></div><div className="hero-art"><div className="hero-orbit orbit-one"/><div className="hero-orbit orbit-two"/><BottleArt color="amber" className="hero-bottle back"/><BottleArt color="fern" className="hero-bottle front"/><span className="art-tag"><Wine size={13}/> Built on Wine</span></div></section>
+    <div className="stats-row"><div><span className="stat-icon"><Layers3 size={18}/></span><span>独立环境<strong>{state.bottles.length}<small>个 Bottle</small></strong></span></div><div><span className="stat-icon"><Box size={18}/></span><span>已添加程序<strong>{state.programs.length}<small>个程序</small></strong></span></div><div><span className="stat-icon"><TerminalSquare size={18}/></span><span>正在进行<strong>{running}<small>个任务</small></strong></span></div></div>
+    {!state.health.wine.available && <div className="notice"><span className="notice-icon">!</span><div><strong>Wine 运行环境需要处理</strong><span>已检测到主机 Wine 无法运行，配置完成后即可创建可用的 Bottle。</span></div><Link to="/environment">查看诊断 <ArrowRight size={14}/></Link></div>}
+    <div className="bottle-toolbar"><div className="filter-tabs">{[['all', '全部'], ['gaming', '游戏'], ['work', '工作'], ['other', '其他'], ['favorite', '收藏']].map(([key, label]) => <button className={filter === key ? 'active' : ''} onClick={() => setFilter(key)} key={key}>{key === 'favorite' && <Star size={12}/>} {label}</button>)}</div><div className="toolbar-right"><div className="search-field"><Search size={15}/><Input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索名称或描述…" aria-label="搜索 Bottle"/></div><div className="view-toggle"><button aria-label="网格视图" aria-pressed={view === 'grid'} className={view === 'grid' ? 'selected' : ''} onClick={() => setView('grid')}><Grid2X2 size={16}/></button><button aria-label="列表视图" aria-pressed={view === 'list'} className={view === 'list' ? 'selected' : ''} onClick={() => setView('list')}><List size={17}/></button></div></div></div>
+    {bottles.length ? <div className={cn('bottle-grid', view === 'list' && 'bottle-list')}>{bottles.map(bottle => {
+      const programs = state.programs.filter(program => program.bottleId === bottle.id); const active = state.jobs.some(job => job.bottleId === bottle.id && job.status === 'running')
+      return <article className="bottle-card" key={bottle.id}><div className={`bottle-card-art ${bottle.color}`}><Link to={`/bottles/${bottle.id}`} aria-label={`打开 ${bottle.name}`}><BottleArt color={bottle.color}/></Link><span className="category-badge">{bottle.category === 'gaming' && <Gamepad2 size={12}/>} {categoryLabels[bottle.category]}</span><button disabled={pending} aria-label={bottle.favorite ? `取消收藏 ${bottle.name}` : `收藏 ${bottle.name}`} onClick={() => favorite(bottle)} className={cn('favorite-button', bottle.favorite && 'is-favorite')}><Star size={16} fill={bottle.favorite ? 'currentColor' : 'none'}/></button></div><div className="bottle-card-body"><div className="card-title-row"><h2><Link to={`/bottles/${bottle.id}`}>{bottle.name}</Link></h2><Status status={bottle.status === 'ready' && active ? 'running' : bottle.status}/></div><p>{bottle.description || '独立的 64 位 Windows 环境'}</p><div className="bottle-card-meta"><span>{bottle.windows === 'win11' ? 'Windows 11' : bottle.windows === 'win7' ? 'Windows 7' : 'Windows 10'}<i/>64-bit</span><span>{programs.length} 个程序</span></div><div className="bottle-card-footer"><span>{dateLabel(bottle.createdAt)}创建</span><Link to={`/bottles/${bottle.id}`}>打开 Bottle <ArrowUpRight size={14}/></Link></div></div></article>
+    })}</div> : query || filter !== 'all' ? <div className="empty-state compact"><Search size={28}/><h2>没有找到匹配的 Bottle</h2><p>试试其他关键词，或调整筛选条件。</p><Button variant="outline" onClick={() => { setQuery(''); setFilter('all') }}>清除筛选</Button></div> : <div className="first-bottle"><div className="empty-bottle-art"><BottleArt/></div><div><span className="eyebrow">EVERYTHING STARTS WITH A BOTTLE</span><h2>从第一个 Bottle 开始</h2><p>为你的 Windows 应用创建一个独立环境。<br/>准备好之后，就能上传程序、安装依赖并开始运行。</p><Button onClick={onCreate} variant="outline"><Plus/>创建第一个 Bottle</Button></div></div>}
+    <section className="getting-started"><div><span className="eyebrow">A SIMPLE START</span><h2>三步，让应用住进来。</h2></div><ol><li><span>01</span><div><strong>创建一个 Bottle</strong><p>选择名称和 Windows 版本</p></div></li><li><span>02</span><div><strong>添加你的程序</strong><p>上传 .exe，或选择已有文件</p></div></li><li><span>03</span><div><strong>点击运行</strong><p>Mac 本机窗口，Linux 网页桌面</p></div></li></ol></section>
+  </>
+}
